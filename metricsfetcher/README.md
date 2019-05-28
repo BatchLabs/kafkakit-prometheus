@@ -20,9 +20,12 @@ The filesystem available gauge:
 
 ## Installation
 
-Run this:
+Because of a dependency which contains a `vendor` directory `go get` will not work.
 
-    go get github.com/BatchLabs/kafkakit-prometheus/metricsfetcher
+You need to run this outside your GOPATH:
+
+    git clone https://github.com/BatchLabs/kafkakit-prometheus
+    go install ./...
 
 ## Usage
 
