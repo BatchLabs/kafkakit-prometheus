@@ -5,6 +5,7 @@ import (
 	"flag"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,7 +31,21 @@ func main() {
 
 	//
 
-	zkConn, _, err := zk.Connect([]string{*flZkAddr}, 20*time.Second)
+	var (
+		zkAddr   string
+		zkChroot string
+	)
+
+	if pos := strings.IndexByte(*flZkAddr, '/'); pos >= 0 {
+		zkAddr = (*flZkAddr)[:pos]
+		zkChroot = (*flZkAddr)[pos:]
+	} else {
+		zkAddr = *flZkAddr
+	}
+
+	//
+
+	zkConn, _, err := zk.Connect([]string{zkAddr}, 20*time.Second)
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -40,7 +55,12 @@ func main() {
 
 	const brokersPath = "/brokers/ids"
 
-	ids, _, err := zkConn.Children(brokersPath)
+	zkPath := brokersPath
+	if zkChroot != "" {
+		zkPath = zkChroot + brokersPath
+	}
+
+	ids, _, err := zkConn.Children(zkPath)
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -52,7 +72,7 @@ func main() {
 	prometheusHosts := make(map[brokerID]string)
 
 	for _, id := range ids {
-		data, _, err := zkConn.Get(brokersPath + "/" + id)
+		data, _, err := zkConn.Get(zkPath + "/" + id)
 		if err != nil {
 			logrus.Fatal(err)
 		}
