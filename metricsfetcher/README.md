@@ -1,4 +1,4 @@
-# metrivsfetcher
+# metricsfetcher
 
 This tool fetches partition and storage metrics from brokers exposing a Prometheus endpoint and stores them using the original [format](https://github.com/DataDog/kafka-kit/tree/master/cmd/metricsfetcher#data-structures) in ZooKeeper.
 
