@@ -197,12 +197,12 @@ func main() {
 
 	// Write to Zookeeper
 
-	data, err := json.Marshal(partitionMapping)
+	partitionMetaData, err := json.Marshal(partitionMapping)
 	if err != nil {
 		logrus.Fatal(err)
 	}
 
-	data, err = json.Marshal(brokerMetrics)
+	brokerMetricsData, err := json.Marshal(brokerMetrics)
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -246,10 +246,10 @@ func main() {
 		}
 
 	default:
-		if err := writeToZookeeper(zkConn, "partitionmeta", data); err != nil {
+		if err := writeToZookeeper(zkConn, "partitionmeta", partitionMetaData); err != nil {
 			logrus.Fatal(err)
 		}
-		if err := writeToZookeeper(zkConn, "brokermetrics", data); err != nil {
+		if err := writeToZookeeper(zkConn, "brokermetrics", brokerMetricsData); err != nil {
 			logrus.Fatal(err)
 		}
 	}
