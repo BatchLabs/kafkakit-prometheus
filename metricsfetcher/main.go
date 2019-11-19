@@ -3,12 +3,14 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prom2json"
 	"github.com/samuel/go-zookeeper/zk"
@@ -21,6 +23,7 @@ func main() {
 		flBrokerPromPort   = flag.String("broker-prom-port", "3451", "The broker prometheus exporter port to fetch partition metrics")
 		flNodeExporterPort = flag.String("node-exporter-port", "19100", "The node_exporter port to fetch filesystem metrics")
 		flDataMountpoint   = flag.String("data-mountpoint", "/data", "The mountpoint where data is stored to determine filesystem usage")
+		flDryRun           = flag.Bool("dry-run", false, "Fetch the metrics but don't write them to ZooKeeper, instead print them")
 	)
 
 	flag.Parse()
@@ -44,6 +47,8 @@ func main() {
 	}
 
 	//
+
+	zk.DefaultLogger = log.New(logrus.StandardLogger().Writer(), "", 0)
 
 	zkConn, _, err := zk.Connect([]string{zkAddr}, 20*time.Second)
 	if err != nil {
@@ -204,8 +209,18 @@ func main() {
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	if err := writeToZookeeper(zkConn, "brokermetrics", data); err != nil {
-		logrus.Fatal(err)
+
+	switch {
+	case *flDryRun:
+		logrus.Println("fetched metrics")
+		for brokerID, obj := range brokerMetrics {
+			logrus.Printf("\tbroker #%-4s %15s: %s", brokerID, "storage free", humanize.Bytes(uint64(obj.StorageFree)))
+		}
+
+	default:
+		if err := writeToZookeeper(zkConn, "brokermetrics", data); err != nil {
+			logrus.Fatal(err)
+		}
 	}
 }
 
