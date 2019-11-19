@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -201,9 +202,6 @@ func main() {
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	if err := writeToZookeeper(zkConn, "partitionmeta", data); err != nil {
-		logrus.Fatal(err)
-	}
 
 	data, err = json.Marshal(brokerMetrics)
 	if err != nil {
@@ -212,12 +210,46 @@ func main() {
 
 	switch {
 	case *flDryRun:
+		// In dry-run don't do anything but display the information we retrieved and computed.
+
+		logrus.Println("partition mapping")
+		for topic, m := range partitionMapping {
+			logrus.Printf("topic: %s", topic)
+
+			type el struct {
+				Partition int
+				Size      uint64
+			}
+
+			var entries []el
+
+			for partition, obj := range m {
+				p, _ := strconv.Atoi(partition)
+
+				entries = append(entries, el{
+					Partition: p,
+					Size:      uint64(obj.Size),
+				})
+			}
+
+			sort.Slice(entries, func(i, j int) bool {
+				return entries[i].Partition < entries[j].Partition
+			})
+
+			for _, entry := range entries {
+				logrus.Printf("\tpartition %-4d size: %s", entry.Partition, humanize.Bytes(entry.Size))
+			}
+		}
+
 		logrus.Println("fetched metrics")
 		for brokerID, obj := range brokerMetrics {
 			logrus.Printf("\tbroker #%-4s %15s: %s", brokerID, "storage free", humanize.Bytes(uint64(obj.StorageFree)))
 		}
 
 	default:
+		if err := writeToZookeeper(zkConn, "partitionmeta", data); err != nil {
+			logrus.Fatal(err)
+		}
 		if err := writeToZookeeper(zkConn, "brokermetrics", data); err != nil {
 			logrus.Fatal(err)
 		}
