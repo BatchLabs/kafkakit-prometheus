@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"sort"
@@ -17,6 +18,8 @@ import (
 	"github.com/samuel/go-zookeeper/zk"
 	"github.com/sirupsen/logrus"
 )
+
+var zkChroot string
 
 func main() {
 	var (
@@ -35,11 +38,7 @@ func main() {
 
 	//
 
-	var (
-		zkAddr   string
-		zkChroot string
-	)
-
+	var zkAddr string
 	if pos := strings.IndexByte(*flZkAddr, '/'); pos >= 0 {
 		zkAddr = (*flZkAddr)[:pos]
 		zkChroot = (*flZkAddr)[pos:]
@@ -258,15 +257,37 @@ func main() {
 
 func writeToZookeeper(zkConn *zk.Conn, path string, data []byte) error {
 	const root = "/topicmappr"
-	path = root + "/" + path
 
+	// If our cluster is a zk chroot we need to use it too.
+
+	var dir string
+	if zkChroot != "" {
+		dir = zkChroot + root
+	} else {
+		dir = root
+	}
+	path = dir + "/" + path
+
+	// Remove the old node.
 	err := zkConn.Delete(path, 0)
 	if err != nil && err != zk.ErrNoNode {
-		return err
+		return fmt.Errorf("unable to delete path %s. err: %v", path, err)
 	}
 
+	// Create the directory node
+	_, err = zkConn.Create(dir, nil, 0, zk.WorldACL(zk.PermAll))
+	if err != nil && err != zk.ErrNodeExists {
+		return fmt.Errorf("unable to create node %s. err: %v", path, err)
+	}
+
+	// Create the data node
+	logrus.Printf("writing data to %s", path)
+
 	_, err = zkConn.Create(path, data, 0, zk.WorldACL(zk.PermAll))
-	return err
+	if err != nil {
+		return fmt.Errorf("unable to create path %s. err: %v", path, err)
+	}
+	return nil
 }
 
 func fetchMetrics(host string, fn func(wg *sync.WaitGroup, ch <-chan *dto.MetricFamily)) {
